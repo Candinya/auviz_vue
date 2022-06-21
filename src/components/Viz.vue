@@ -20,7 +20,7 @@
           @mousemove="seekProgress"
           @click="jumpProgress"
       >
-        <div class="bar full" />
+        <div ref="barFull" class="bar full" />
         <div ref="barBuffered" class="bar buffered" />
         <div ref="barPlayed" class="bar played" />
         <div ref="seeker" class="seeker">
@@ -40,6 +40,7 @@ const vizplayer = ref<HTMLCanvasElement | null>(null);
 
 const timeNow = ref<HTMLSpanElement | null>(null);
 const timeFull = ref<HTMLSpanElement | null>(null);
+const barFull = ref<HTMLDivElement | null>(null);
 const barBuffered = ref<HTMLDivElement | null>(null);
 const barPlayed = ref<HTMLDivElement | null>(null);
 const seeker = ref<HTMLDivElement | null>(null);
@@ -289,7 +290,7 @@ const endSeeking = () => {
 }
 
 const seekProgress = (e: MouseEvent) => {
-  const seekPercent = e.offsetX / canvasSize.width;
+  const seekPercent = e.offsetX / barFull.value!.clientWidth;
   const seekTime = Math.floor(seekPercent * audio.duration);
   timeNow.value!.innerText = parseSecondsToTime(seekTime);
   barPlayed.value!.style.width = `${seekPercent * 100}%`;
@@ -297,7 +298,7 @@ const seekProgress = (e: MouseEvent) => {
 };
 
 const jumpProgress = (e: MouseEvent) => {
-  const seekPercent = e.offsetX / canvasSize.width;
+  const seekPercent = e.offsetX / barFull.value!.clientWidth;
   audio.currentTime = seekPercent * audio.duration;
 };
 
@@ -334,9 +335,11 @@ const jumpProgress = (e: MouseEvent) => {
       }
       &.buffered {
         background-color: #ccc;
+        pointer-events: none;
       }
       &.played {
         background-color: #eee;
+        pointer-events: none;
       }
     }
     > .seeker {
