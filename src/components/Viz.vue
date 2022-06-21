@@ -1,5 +1,7 @@
 <template>
-  <div ref="wrapper" class="wrapper">
+  <div ref="wrapper" class="wrapper" :class="{
+    'playing': isPlaying
+  }">
     <canvas ref="vizplayer" class="vizplayer" />
     <div class="control-bar">
       <div class="button" @click="togglePlay">
@@ -152,6 +154,16 @@ const initAudioAnalyser = (src: string) => {
 
   // Initialize analyser
   analyser.fftSize = FREQ_BIN_COUNT << 1;
+
+  // Update status when audio status changed
+  audio.addEventListener('pause', () => {
+    isPlaying.value = false;
+    stopAngleStep();
+  });
+  audio.addEventListener('play', () => {
+    isPlaying.value = true;
+    startAngleStep();
+  });
 }
 
 const initStats = () => {
@@ -216,10 +228,10 @@ const render = () => {
   //// Update time
   timeFull.value!.innerText = parseSecondsToTime(audio.duration);
   //// Update played progress
+  const playedPercent = audio.currentTime / audio.duration * 100;
+  barPlayed.value!.style.width = `${playedPercent}%`;
   if (!isSeeking) {
-    const playedPercent = audio.currentTime / audio.duration * 100;
     timeNow.value!.innerText = parseSecondsToTime(audio.currentTime);
-    barPlayed.value!.style.width = `${playedPercent}%`;
     seeker.value!.style.left = `${playedPercent}%`;
   }
   //// Update buffered progress
@@ -258,17 +270,12 @@ const togglePlay = () => {
     if (!isContextResumed) {
       // Resume audio
       context.resume();
-
       // Update status
       isContextResumed = true;
     }
 
-    startAngleStep();
-    isPlaying.value = true;
     audio.play();
   } else {
-    stopAngleStep();
-    isPlaying.value = false;
     audio.pause();
   }
 };
@@ -335,6 +342,7 @@ const jumpProgress = (e: MouseEvent) => {
     > .seeker {
       bottom: 0;
       transition: bottom .3s ease-in-out;
+      pointer-events: none;
       > .ball {
         position: absolute;
         width: .4rem;
@@ -381,7 +389,7 @@ const jumpProgress = (e: MouseEvent) => {
   }
 }
 
-.wrapper:hover {
+.wrapper:not(.playing), .wrapper.playing:hover {
   .control-bar {
     > .process-bar {
       > .bar {
