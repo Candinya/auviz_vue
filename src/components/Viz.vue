@@ -547,6 +547,9 @@ const drawFragment = (props: FragmentProps) => {
 
 </script>
 <style scoped lang="less">
+* {
+  user-select: none;
+}
 .wrapper {
   overflow: hidden;
   position: relative;
@@ -618,7 +621,6 @@ const drawFragment = (props: FragmentProps) => {
     color: #fffc;
     right: 0.5rem;
     top: -2rem;
-    user-select: none;
 
     > span {
       margin: 2px;
