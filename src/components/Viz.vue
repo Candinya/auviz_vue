@@ -1,7 +1,7 @@
 <template>
   <div ref="wrapper" class="wrapper" :class="{
     'playing': isPlaying
-  }">
+  }" @wheel="scrollVolume">
     <canvas ref="vizplayer" class="vizplayer" />
     <img
         v-show="coverImg"
@@ -37,6 +37,16 @@
         </div>
       </div>
     </div>
+    <div class="volume-control">
+      <div class="volume-bar" @click="jumpVolume">
+        <div ref="barVolumeFull" class="bar full" />
+        <div v-show="!isMuted" ref="barVolumeNow" class="bar now" />
+      </div>
+      <div class="mute-button" @click="toggleMute">
+        <i v-if="isMuted" class="bx bx-volume-mute" />
+        <i v-else class="bx bx-volume-full" />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -64,6 +74,9 @@ const barBuffered = ref<HTMLDivElement | null>(null);
 const barPlayed = ref<HTMLDivElement | null>(null);
 const seeker = ref<HTMLDivElement | null>(null);
 
+const barVolumeFull = ref<HTMLDivElement | null>(null);
+const barVolumeNow = ref<HTMLDivElement | null>(null);
+
 onMounted(() => {
   if (props.audioSrc) {
     // Initialize
@@ -82,10 +95,12 @@ const COLORS = {
   fragments: '#fff3',
 };
 const ANGLE_STEP = 0.3; // Change angle per 20ms
+const FRAGMENTS_STEP = 0.1;
 const RADIUS_LIMIT = {
   min: 1/5,
   max: 1/3,
 };
+const VOLUME_SCROLL_STEP = 0.0005;
 
 // Define variables
 let analyser: AnalyserNode;
@@ -106,6 +121,7 @@ let isContextResumed = false;
 let angleOffset = 0;
 let angleStepEvent: number = 0;
 const isPlaying = ref(false);
+const isMuted = ref(false);
 let isSeeking = false;
 
 // Define performance monitor
@@ -117,7 +133,8 @@ const dataArray = new Uint8Array(FREQ_BIN_COUNT);
 // Initialize function
 const init = (src: string) => {
   initCanvasSize(wrapper.value!.clientWidth);
-  initAudioAnalyser(src);
+  initAudio(src);
+  initAudioAnalyser();
 
   window.addEventListener('resize', () => {
     if (wrapper.value?.clientWidth) {
@@ -155,12 +172,27 @@ const initCanvasSize = (width: number) => {
   cctx.lineCap = 'round';
 };
 
-const initAudioAnalyser = (src: string) => {
+const initAudio = (src: string) => {
   // Load media
   audio = new Audio(src);
   audio.autoplay = false;
   audio.crossOrigin = 'anonymous';
 
+  // Update status when audio status changed
+  audio.addEventListener('pause', () => {
+    isPlaying.value = false;
+    stopAngleStep();
+  });
+  audio.addEventListener('play', () => {
+    isPlaying.value = true;
+    startAngleStep();
+  });
+
+  // Init volume
+  barVolumeNow.value!.style.height = `${audio.volume * 100}%`;
+}
+
+const initAudioAnalyser = () => {
   // Cross browser support
   // @ts-ignore
   const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -178,16 +210,6 @@ const initAudioAnalyser = (src: string) => {
 
   // Initialize analyser
   analyser.fftSize = FREQ_BIN_COUNT << 1;
-
-  // Update status when audio status changed
-  audio.addEventListener('pause', () => {
-    isPlaying.value = false;
-    stopAngleStep();
-  });
-  audio.addEventListener('play', () => {
-    isPlaying.value = true;
-    startAngleStep();
-  });
 }
 
 const initStats = () => {
@@ -325,6 +347,36 @@ const jumpProgress = (e: MouseEvent) => {
   audio.currentTime = seekPercent * audio.duration;
 };
 
+const toggleMute = () => {
+  audio.muted = !audio.muted;
+  isMuted.value = audio.muted;
+}
+
+const jumpVolume = (e: MouseEvent) => {
+  const volumePercent = (barVolumeFull.value!.clientHeight - e.offsetY) / barVolumeFull.value!.clientHeight;
+  setVolume(volumePercent);
+}
+
+const scrollVolume = (e: WheelEvent) => {
+  setVolume(audio.volume - e.deltaY * VOLUME_SCROLL_STEP)
+}
+
+const setVolume = (volumePercent: number) => {
+  if (volumePercent < 0) {
+    if (!isMuted.value) {
+      toggleMute();
+    }
+    return
+  } else if (volumePercent > 1) {
+    volumePercent = 1;
+  }
+  if (isMuted.value) {
+    toggleMute();
+  }
+  audio.volume = volumePercent;
+  barVolumeNow.value!.style.height = `${volumePercent * 100}%`;
+}
+
 const getCoverColor = () => {
   const colorThief = new ColorThief();
   const colors = colorThief.getPalette(cover.value);
@@ -439,6 +491,55 @@ const changeColor = (rgbColor: [number, number, number], isDarken: boolean): [nu
   }
 }
 
+.volume-control {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  padding: 1rem;
+  height: 50%;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  margin: auto;
+  align-items: center;
+  gap: .5rem;
+  opacity: 0;
+  transition: opacity .3s ease-in-out;
+
+  > * {
+    display: flex;
+  }
+
+  .volume-bar {
+    flex-grow: 1;
+    width: .5rem;
+    border-radius: .5rem;
+    position: relative;
+
+    > .bar {
+      position: absolute;
+      width: 100%;
+      border-radius: .5rem;
+      bottom: 0;
+    }
+
+    > .full {
+      cursor: pointer;
+      background-color: #fff3;
+      height: 100%;
+    }
+
+    > .now {
+      background-color: #fff6;
+      pointer-events: none;
+    }
+  }
+  .mute-button {
+    color: #ccc;
+    cursor: pointer;
+  }
+}
+
 .wrapper:not(.playing), .wrapper.playing:hover {
   .control-bar {
     > .process-bar {
@@ -452,6 +553,12 @@ const changeColor = (rgbColor: [number, number, number], isDarken: boolean): [nu
     .time, .button {
       opacity: 1;
     }
+  }
+}
+
+.wrapper:hover {
+  .volume-control {
+    opacity: 1;
   }
 }
 </style>
