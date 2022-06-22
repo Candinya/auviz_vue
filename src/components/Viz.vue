@@ -80,7 +80,6 @@ const barVolumeNow = ref<HTMLDivElement | null>(null);
 onMounted(() => {
   if (props.audioSrc) {
     // Initialize
-    console.log('Viz mounted');
     init(props.audioSrc);
   } else {
     console.error('audio is required');
