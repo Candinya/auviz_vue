@@ -335,7 +335,7 @@ const getCoverColor = () => {
 
 const changeColor = (rgbColor: [number, number, number], isDarken: boolean): [number, number, number] => {
   const [h, s] = rgbToHsl(...rgbColor);
-  return hslToRgb(h, s, isDarken ? 0.25 : 0.75);
+  return hslToRgb(h, s, isDarken ? 0.25 : 0.85);
 }
 
 </script>
