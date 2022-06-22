@@ -99,7 +99,7 @@ const FRAGMENTS_SETTINGS = {
 const ANGLE_STEP = 0.3; // Change angle per 20ms
 const RADIUS_LIMIT = {
   min: 1/5,
-  max: 1/3,
+  max: 3/8,
 };
 const ASPECT_RATIO = 16 / 9;
 
@@ -325,7 +325,7 @@ const render = () => {
     );
     cctx.moveTo(startPoint.x, startPoint.y); // Start point
     const endPoint = convertPolarToCartesian(
-        dataArray[i] * freqMultiplyRate.radius + canvasSize.height * RADIUS_LIMIT.min,
+        dataArray[i] * freqMultiplyRate.radius * (audio.volume * 0.5 + 0.5) + canvasSize.height * RADIUS_LIMIT.min,
         angleInDegree,
     );
     cctx.lineTo(
