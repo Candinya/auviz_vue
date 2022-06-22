@@ -509,7 +509,7 @@ const getCoverColor = () => {
 
 const changeColor = (rgbColor: [number, number, number], isDarken: boolean): [number, number, number] => {
   const [h, s] = rgbToHsl(...rgbColor);
-  return hslToRgb(h, s, isDarken ? 0.25 : 0.85);
+  return hslToRgb(h, s, isDarken ? 0.3 : 0.85);
 }
 
 const drawFragment = (props: FragmentProps) => {
