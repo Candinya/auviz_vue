@@ -94,7 +94,7 @@ const FRAGMENTS_SETTINGS = {
   minRadius: 1/150,
   maxRadius: 1/60,
   stepRadius: 0.1, // Increases per 20ms
-  stepAngle: 2,
+  stepAngle: 1.5,
 };
 const ANGLE_STEP = 0.3; // Change angle per 20ms
 const RADIUS_LIMIT = {
@@ -346,10 +346,11 @@ const render = () => {
   // Draw fragments
   for (let i = 0; i < FRAGMENTS_SETTINGS.count; i++) {
     if (!drawFragment(fragmentsArray[i])) {
+      const selfRadius = Math.random() * (fragmentSize.maxSelfRadius - fragmentSize.minSelfRadius) + fragmentSize.minSelfRadius
       fragmentsArray[i] = {
-        selfRadius: Math.random() * (fragmentSize.maxSelfRadius - fragmentSize.minSelfRadius) + fragmentSize.minSelfRadius,
+        selfRadius,
         selfAngle: Math.random() * 360,
-        positionRadius: fragmentSize.minPositionRadius,
+        positionRadius: fragmentSize.minPositionRadius - selfRadius,
         positionAngle: Math.random() * 360,
         stepRadius: (Math.random() * 0.5 + 0.5) * FRAGMENTS_SETTINGS.stepRadius,
         stepAngle: (Math.random() * 2 - 1) * FRAGMENTS_SETTINGS.stepAngle,
