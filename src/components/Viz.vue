@@ -93,7 +93,7 @@ const FRAGMENTS_SETTINGS = {
   count: 256, // Count of random fragments
   minRadius: 1/150,
   maxRadius: 1/60,
-  stepRadius: 0.1, // Increases per 20ms
+  stepRadius: 1/2000, // Increases per 20ms
   stepAngle: 1.5,
 };
 const ANGLE_STEP = 0.3; // Change angle per 20ms
@@ -121,6 +121,7 @@ let fragmentSize: {
   maxSelfRadius: number,
   minPositionRadius: number,
   maxPositionRadius: number,
+  stepRadius: number,
 };
 
 // Define state
@@ -256,6 +257,7 @@ const initFragmentsSize = () => {
     maxSelfRadius: FRAGMENTS_SETTINGS.maxRadius * canvasSize.height,
     minPositionRadius,
     maxPositionRadius: canvasSize.width / 2 - minPositionRadius,
+    stepRadius: FRAGMENTS_SETTINGS.stepRadius * canvasSize.width
   }
 }
 
@@ -267,7 +269,7 @@ const initFragments = () => {
       selfAngle: Math.random() * 360,
       positionRadius: Math.random() * (fragmentSize.maxPositionRadius - fragmentSize.minPositionRadius) + fragmentSize.minPositionRadius,
       positionAngle: Math.random() * 360,
-      stepRadius: (Math.random() * 0.5 + 0.5) * FRAGMENTS_SETTINGS.stepRadius,
+      stepRadius: (Math.random() * 0.5 + 0.5) * fragmentSize.stepRadius,
       stepAngle: (Math.random() * 2 - 1) * FRAGMENTS_SETTINGS.stepAngle,
     }
     drawFragment(fragmentsArray[i]);
@@ -352,7 +354,7 @@ const render = () => {
         selfAngle: Math.random() * 360,
         positionRadius: fragmentSize.minPositionRadius - selfRadius,
         positionAngle: Math.random() * 360,
-        stepRadius: (Math.random() * 0.5 + 0.5) * FRAGMENTS_SETTINGS.stepRadius,
+        stepRadius: (Math.random() * 0.5 + 0.5) * fragmentSize.stepRadius,
         stepAngle: (Math.random() * 2 - 1) * FRAGMENTS_SETTINGS.stepAngle,
       }
       drawFragment(fragmentsArray[i]);
