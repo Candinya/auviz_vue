@@ -159,6 +159,7 @@ const initAudioAnalyser = (src: string) => {
   // Load media
   audio = new Audio(src);
   audio.autoplay = false;
+  audio.crossOrigin = 'anonymous';
 
   // Cross browser support
   // @ts-ignore
