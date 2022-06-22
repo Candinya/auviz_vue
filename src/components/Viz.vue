@@ -132,7 +132,7 @@ const isPlaying = ref(false);
 const isMuted = ref(false);
 let isSeeking = false;
 let colors = {
-  bg: '#000c',
+  bg: '#333',
   freq: '#fff',
   fragments: '#fff6',
 };
@@ -160,8 +160,9 @@ const init = (src: string) => {
   initAudio(src);
   initAudioAnalyser();
   initFragments();
+  initWrapperBG();
 
-  window.addEventListener('resize', () => {
+  new ResizeObserver(() => {
     if (wrapper.value?.clientWidth) {
       initCanvasSize(wrapper.value.clientWidth);
       initFragmentsSize();
@@ -171,7 +172,7 @@ const init = (src: string) => {
         requestAnimationFrame(render);
       } // else will be auto flushed
     }
-  });
+  }).observe(wrapper.value!);
 
   initStats();
 
@@ -273,6 +274,10 @@ const initFragments = () => {
     }
     drawFragment(fragmentsArray[i]);
   }
+}
+
+const initWrapperBG = () => {
+  wrapper.value!.style.backgroundColor = colors.bg;
 }
 
 const initStats = () => {
@@ -507,6 +512,9 @@ const getCoverColor = () => {
 
   // Update line color
   cctx.strokeStyle = colors.freq;
+
+  // Update wrapper background color
+  initWrapperBG();
 
   // Flush canvas
   if (flushEventId === 0) {
