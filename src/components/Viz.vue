@@ -322,7 +322,7 @@ const render = () => {
 
   // Draw frequency data
   cctx.fillStyle = colors.freq;
-  for (let i = 0; i < FREQ_BIN_COUNT / 2; i++) {
+  for (let i = 0; i < FREQ_BIN_COUNT >> 1; i++) {
     // Only select lower half to optimize visual effects
     // (otherwise it will be too empty)
     cctx.beginPath();
