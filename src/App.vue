@@ -9,7 +9,7 @@ import Viz from './components/Viz.vue'
   <div :style="{
     margin: '0 2rem',
   }">
-    <Viz audio-src="/demo.mp3" />
+    <Viz audio-src="/demo.mp3" cover="https://file.nya.one/misskey/1dfe05b6-32d5-42ff-aa39-7e33aefb84ec.jpg" />
   </div>
 </template>
 

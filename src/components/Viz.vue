@@ -3,6 +3,15 @@
     'playing': isPlaying
   }">
     <canvas ref="vizplayer" class="vizplayer" />
+    <img
+        v-show="coverImg"
+        :src="coverImg"
+        alt="Audio Cover"
+        ref="cover"
+        class="cover"
+        crossorigin="anonymous"
+        @load="getCoverColor"
+    />
     <div class="control-bar">
       <div class="button" @click="togglePlay">
         <i v-if="isPlaying" class="bx bx-pause" />
@@ -32,11 +41,21 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import Stats from 'stats.js'
+import { onMounted, ref } from 'vue';
+import Stats from 'stats.js';
+import ColorThief from "colorthief";
+import {hslToRgb, rgbToHsl} from "../utils/color";
+
+const props = defineProps({
+  audioSrc: String,
+  cover: String,
+});
+
+const coverImg = ref(props.cover);
 
 const wrapper = ref<HTMLDivElement | null>(null);
 const vizplayer = ref<HTMLCanvasElement | null>(null);
+const cover = ref<HTMLImageElement | null>(null);
 
 const timeNow = ref<HTMLSpanElement | null>(null);
 const timeFull = ref<HTMLSpanElement | null>(null);
@@ -44,10 +63,6 @@ const barFull = ref<HTMLDivElement | null>(null);
 const barBuffered = ref<HTMLDivElement | null>(null);
 const barPlayed = ref<HTMLDivElement | null>(null);
 const seeker = ref<HTMLDivElement | null>(null);
-
-const props = defineProps({
-  audioSrc: String,
-});
 
 onMounted(() => {
   if (props.audioSrc) {
@@ -65,10 +80,12 @@ const COLORS = {
   bg: '#000c',
   freq: '#fff',
   fragments: '#fff3',
-  buffered: '#ccc',
-  played: '#333',
 };
 const ANGLE_STEP = 0.3; // Change angle per 20ms
+const RADIUS_LIMIT = {
+  min: 1/5,
+  max: 1/3,
+};
 
 // Define variables
 let analyser: AnalyserNode;
@@ -97,6 +114,7 @@ let stats: Stats;
 // Prepare data array
 const dataArray = new Uint8Array(FREQ_BIN_COUNT);
 
+// Initialize function
 const init = (src: string) => {
   initCanvasSize(wrapper.value!.clientWidth);
   initAudioAnalyser(src);
@@ -121,10 +139,14 @@ const initCanvasSize = (width: number) => {
   vizplayer.value!.width = canvasSize.width;
   vizplayer.value!.height = canvasSize.height;
   freqMultiplyRate = {
-    radius: (canvasSize.height * 5 / 24) / 256, // (2/3-1/4)/2=5/24 , 0 - 255
+    radius: canvasSize.height * (RADIUS_LIMIT.max - RADIUS_LIMIT.min) / 256, // (2/3-1/4)/2=5/24 , 0 - 255
     angleInDegrees: 360 / FREQ_BIN_COUNT,
   }
   cctx = vizplayer.value!.getContext('2d')!;
+
+  // Set cover size
+  cover.value!.width = canvasSize.height * RADIUS_LIMIT.min * 2 - 4;
+  cover.value!.height = canvasSize.height * RADIUS_LIMIT.min * 2 - 4;
 
   // Set line style
   cctx.strokeStyle = COLORS.freq;
@@ -206,14 +228,14 @@ const render = () => {
     cctx.beginPath();
     const angleInDegree = freqMultiplyRate.angleInDegrees * i * 2 + angleOffset;
     const startPoint = convertPolarToCartesian(
-      canvasSize.height / 4,
+      canvasSize.height * RADIUS_LIMIT.min,
       angleInDegree,
         canvasSize.width / 2,
         canvasSize.height / 2,
     );
     cctx.moveTo(startPoint.x, startPoint.y); // Start point
     const endPoint = convertPolarToCartesian(
-        dataArray[i] * freqMultiplyRate.radius + canvasSize.height / 4,
+        dataArray[i] * freqMultiplyRate.radius + canvasSize.height * RADIUS_LIMIT.min,
         angleInDegree,
         canvasSize.width / 2,
         canvasSize.height / 2,
@@ -302,13 +324,37 @@ const jumpProgress = (e: MouseEvent) => {
   audio.currentTime = seekPercent * audio.duration;
 };
 
+const getCoverColor = () => {
+  const colorThief = new ColorThief();
+  const colors = colorThief.getPalette(cover.value);
+  COLORS.bg = `rgb(${changeColor(colors[0], true).join(',')})`;
+  COLORS.freq = `rgb(${changeColor(colors[1], false).join(',')})`;
+  COLORS.fragments = `rgba(${changeColor(colors[2], false).join(',')},0.3)`;
+}
+
+const changeColor = (rgbColor: [number, number, number], isDarken: boolean): [number, number, number] => {
+  const [h, s] = rgbToHsl(...rgbColor);
+  return hslToRgb(h, s, isDarken ? 0.25 : 0.75);
+}
+
 </script>
 <style scoped lang="less">
 .wrapper {
   overflow: hidden;
+  position: relative;
 }
 .vizplayer {
   display: block;
+}
+.cover {
+  position: absolute;
+  border-radius: 100%;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: auto;
+  object-fit: cover;
 }
 .control-bar {
   width: 100%;
@@ -334,11 +380,11 @@ const jumpProgress = (e: MouseEvent) => {
         background-color: #888;
       }
       &.buffered {
-        background-color: #ccc;
+        background-color: #bbb;
         pointer-events: none;
       }
       &.played {
-        background-color: #eee;
+        background-color: #ddd;
         pointer-events: none;
       }
     }
