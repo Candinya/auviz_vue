@@ -51,7 +51,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, onBeforeUnmount, ref } from 'vue';
 import Stats from 'stats.js';
 import ColorThief from "colorthief";
 import { hslToRgb, rgbToHsl } from "../utils/color";
@@ -84,6 +84,15 @@ onMounted(() => {
   } else {
     console.error('audio is required');
   }
+});
+
+onBeforeUnmount(() => {
+  // Pause audio
+  if (!audio.paused) {
+    audio.pause();
+  }
+  // Stop steps
+  stopStep();
 });
 
 // Define constants
