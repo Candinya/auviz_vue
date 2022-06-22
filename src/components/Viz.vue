@@ -518,8 +518,8 @@ const drawFragment = (props: FragmentProps) => {
 
   // Calculate if is on canvas
   if (
-      center.x - props.selfRadius < 0 || center.x + props.selfRadius > canvasSize.width ||
-      center.y - props.selfRadius < 0 || center.y + props.selfRadius > canvasSize.height
+      center.x + props.selfRadius < 0 || center.x - props.selfRadius > canvasSize.width ||
+      center.y + props.selfRadius < 0 || center.y - props.selfRadius > canvasSize.height
   ) {
     // Outside of canvas
     return false;
