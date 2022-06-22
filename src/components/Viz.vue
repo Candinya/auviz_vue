@@ -91,8 +91,6 @@ onBeforeUnmount(() => {
   if (!audio.paused) {
     audio.pause();
   }
-  // Stop steps
-  stopStep();
 });
 
 // Define constants
