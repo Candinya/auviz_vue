@@ -126,7 +126,8 @@ let fragmentSize: {
 // Define state
 let isContextResumed = false;
 let angleOffset = 0;
-let stepEvent: number = 0;
+let stepEventId: number = 0;
+let flushEventId: number = 0;
 const isPlaying = ref(false);
 const isMuted = ref(false);
 let isSeeking = false;
@@ -166,7 +167,9 @@ const init = (src: string) => {
       initFragmentsSize();
 
       // Flush canvas
-      requestAnimationFrame(render);
+      if (flushEventId === 0) {
+        requestAnimationFrame(render);
+      } // else will be auto flushed
     }
   });
 
@@ -278,8 +281,8 @@ const initStats = () => {
 }
 
 const startStep = () => {
-  if (stepEvent === 0) {
-    stepEvent = setInterval(() => {
+  if (stepEventId === 0) {
+    stepEventId = setInterval(() => {
       // Angle step
       angleOffset += ANGLE_STEP;
 
@@ -289,16 +292,21 @@ const startStep = () => {
         fragmentsArray[i].selfAngle += fragmentsArray[i].stepAngle;
       }
     }, 20);
-
+  }
+  if (flushEventId === 0) {
     // Start render
-    requestAnimationFrame(render);
+    flushEventId = requestAnimationFrame(render);
   }
 }
 
 const stopStep = () => {
-  if (stepEvent) {
-    clearInterval(stepEvent);
-    stepEvent = 0;
+  if (stepEventId !== 0) {
+    clearInterval(stepEventId);
+    stepEventId = 0;
+  }
+  if (flushEventId !== 0) {
+    cancelAnimationFrame(flushEventId);
+    flushEventId = 0;
   }
 }
 
@@ -371,8 +379,8 @@ const render = () => {
 
   stats.end();
 
-  if (stepEvent !== 0) {
-    // Not paused
+  if (flushEventId !== 0) {
+    // Not single run
     requestAnimationFrame(render);
   }
 }
@@ -473,8 +481,16 @@ const scrollEvent = (e: WheelEvent) => {
 }
 
 const getCoverColor = () => {
+  // Get color
   const colorThief = new ColorThief();
   const palette = colorThief.getPalette(cover.value);
+
+  // Ensure 3 colors
+  while (palette.length < 3) {
+    palette.push(palette[0]);
+  }
+
+  // Set variables
   colors = {
     bg: `rgb(${changeColor(palette[0], true).join(',')})`,
     freq: `rgb(${changeColor(palette[1], false).join(',')})`,
@@ -485,7 +501,9 @@ const getCoverColor = () => {
   cctx.strokeStyle = colors.freq;
 
   // Flush canvas
-  requestAnimationFrame(render);
+  if (flushEventId === 0) {
+    requestAnimationFrame(render);
+  } // else will be automatically flushed
 }
 
 const changeColor = (rgbColor: [number, number, number], isDarken: boolean): [number, number, number] => {
