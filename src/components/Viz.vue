@@ -383,6 +383,9 @@ const getCoverColor = () => {
   COLORS.bg = `rgb(${changeColor(colors[0], true).join(',')})`;
   COLORS.freq = `rgb(${changeColor(colors[1], false).join(',')})`;
   COLORS.fragments = `rgba(${changeColor(colors[2], false).join(',')},0.3)`;
+
+  // Update line color
+  cctx.strokeStyle = COLORS.freq;
 }
 
 const changeColor = (rgbColor: [number, number, number], isDarken: boolean): [number, number, number] => {
