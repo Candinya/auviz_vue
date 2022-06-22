@@ -1,7 +1,7 @@
 <template>
   <div ref="wrapper" class="wrapper" :class="{
     'playing': isPlaying
-  }" @wheel="scrollVolume">
+  }" @wheel="scrollEvent">
     <canvas ref="vizplayer" class="vizplayer" />
     <img
         v-show="coverImg"
@@ -54,7 +54,7 @@
 import { onMounted, ref } from 'vue';
 import Stats from 'stats.js';
 import ColorThief from "colorthief";
-import {hslToRgb, rgbToHsl} from "../utils/color";
+import { hslToRgb, rgbToHsl } from "../utils/color";
 
 const props = defineProps({
   audioSrc: String,
@@ -89,18 +89,19 @@ onMounted(() => {
 
 // Define constants
 const FREQ_BIN_COUNT = 256; // Half of FFT size
-const COLORS = {
-  bg: '#000c',
-  freq: '#fff',
-  fragments: '#fff3',
+const FRAGMENTS_SETTINGS = {
+  count: 256, // Count of random fragments
+  minRadius: 1/150,
+  maxRadius: 1/60,
+  stepRadius: 0.1, // Increases per 20ms
+  stepAngle: 2,
 };
 const ANGLE_STEP = 0.3; // Change angle per 20ms
-const FRAGMENTS_STEP = 0.1;
 const RADIUS_LIMIT = {
   min: 1/5,
   max: 1/3,
 };
-const VOLUME_SCROLL_STEP = 0.0005;
+const ASPECT_RATIO = 16 / 9;
 
 // Define variables
 let analyser: AnalyserNode;
@@ -115,30 +116,57 @@ let freqMultiplyRate: {
   radius: number,
   angleInDegrees: number,
 };
+let fragmentSize: {
+  minSelfRadius: number,
+  maxSelfRadius: number,
+  minPositionRadius: number,
+  maxPositionRadius: number,
+};
 
 // Define state
 let isContextResumed = false;
 let angleOffset = 0;
-let angleStepEvent: number = 0;
+let stepEvent: number = 0;
 const isPlaying = ref(false);
 const isMuted = ref(false);
 let isSeeking = false;
+let colors = {
+  bg: '#000c',
+  freq: '#fff',
+  fragments: '#fff6',
+};
 
 // Define performance monitor
 let stats: Stats;
 
+// Define types
+type FragmentProps = {
+  selfRadius: number,
+  selfAngle: number,
+  positionRadius: number,
+  positionAngle: number,
+  stepRadius: number,
+  stepAngle: number,
+};
+
 // Prepare data array
 const dataArray = new Uint8Array(FREQ_BIN_COUNT);
+const fragmentsArray = new Array<FragmentProps>(FRAGMENTS_SETTINGS.count);
 
 // Initialize function
 const init = (src: string) => {
   initCanvasSize(wrapper.value!.clientWidth);
   initAudio(src);
   initAudioAnalyser();
+  initFragments();
 
   window.addEventListener('resize', () => {
     if (wrapper.value?.clientWidth) {
       initCanvasSize(wrapper.value.clientWidth);
+      initFragmentsSize();
+
+      // Flush canvas
+      requestAnimationFrame(render);
     }
   });
 
@@ -151,7 +179,7 @@ const init = (src: string) => {
 const initCanvasSize = (width: number) => {
   canvasSize = {
     width,
-    height: width / 16 * 9, // Reserve space for status bar
+    height: width / ASPECT_RATIO, // Reserve space for status bar
   };
   vizplayer.value!.width = canvasSize.width;
   vizplayer.value!.height = canvasSize.height;
@@ -166,7 +194,7 @@ const initCanvasSize = (width: number) => {
   cover.value!.height = canvasSize.height * RADIUS_LIMIT.min * 2 - 4;
 
   // Set line style
-  cctx.strokeStyle = COLORS.freq;
+  cctx.strokeStyle = colors.freq;
   cctx.lineWidth = canvasSize.height / 4 * 2 * Math.PI / FREQ_BIN_COUNT * 2 / 3;
   cctx.lineJoin = 'round';
   cctx.lineCap = 'round';
@@ -177,15 +205,21 @@ const initAudio = (src: string) => {
   audio = new Audio(src);
   audio.autoplay = false;
   audio.crossOrigin = 'anonymous';
+  audio.volume = 0.8;
 
   // Update status when audio status changed
   audio.addEventListener('pause', () => {
     isPlaying.value = false;
-    stopAngleStep();
+    stopStep();
   });
   audio.addEventListener('play', () => {
     isPlaying.value = true;
-    startAngleStep();
+    startStep();
+  });
+  audio.addEventListener('durationchange', () => {
+    // Flush status
+    //// Update time
+    timeFull.value!.innerText = parseSecondsToTime(audio.duration);
   });
 
   // Init volume
@@ -210,6 +244,31 @@ const initAudioAnalyser = () => {
 
   // Initialize analyser
   analyser.fftSize = FREQ_BIN_COUNT << 1;
+};
+
+const initFragmentsSize = () => {
+  const minPositionRadius = RADIUS_LIMIT.min * canvasSize.height;
+  fragmentSize = {
+    minSelfRadius: FRAGMENTS_SETTINGS.minRadius * canvasSize.height,
+    maxSelfRadius: FRAGMENTS_SETTINGS.maxRadius * canvasSize.height,
+    minPositionRadius,
+    maxPositionRadius: canvasSize.width / 2 - minPositionRadius,
+  }
+}
+
+const initFragments = () => {
+  initFragmentsSize();
+  for (let i = 0; i < FRAGMENTS_SETTINGS.count; i++) {
+    fragmentsArray[i] = {
+      selfRadius: Math.random() * (fragmentSize.maxSelfRadius - fragmentSize.minSelfRadius) + fragmentSize.minSelfRadius,
+      selfAngle: Math.random() * 360,
+      positionRadius: Math.random() * (fragmentSize.maxPositionRadius - fragmentSize.minPositionRadius) + fragmentSize.minPositionRadius,
+      positionAngle: Math.random() * 360,
+      stepRadius: (Math.random() * 0.5 + 0.5) * FRAGMENTS_SETTINGS.stepRadius,
+      stepAngle: (Math.random() * 2 - 1) * FRAGMENTS_SETTINGS.stepAngle,
+    }
+    drawFragment(fragmentsArray[i]);
+  }
 }
 
 const initStats = () => {
@@ -218,18 +277,28 @@ const initStats = () => {
   document.body.appendChild(stats.dom);
 }
 
-const startAngleStep = () => {
-  if (angleStepEvent === 0) {
-    angleStepEvent = setInterval(() => {
+const startStep = () => {
+  if (stepEvent === 0) {
+    stepEvent = setInterval(() => {
+      // Angle step
       angleOffset += ANGLE_STEP;
+
+      // Fragments step
+      for (let i = 0; i < FRAGMENTS_SETTINGS.count; i++) {
+        fragmentsArray[i].positionRadius += fragmentsArray[i].stepRadius;
+        fragmentsArray[i].selfAngle += fragmentsArray[i].stepAngle;
+      }
     }, 20);
+
+    // Start render
+    requestAnimationFrame(render);
   }
 }
 
-const stopAngleStep = () => {
-  if (angleStepEvent) {
-    clearInterval(angleStepEvent);
-    angleStepEvent = 0;
+const stopStep = () => {
+  if (stepEvent) {
+    clearInterval(stepEvent);
+    stepEvent = 0;
   }
 }
 
@@ -240,11 +309,11 @@ const render = () => {
 
   // Clear canvas
   cctx.clearRect(0, 0, canvasSize.width, canvasSize.height);
-  cctx.fillStyle = COLORS.bg;
+  cctx.fillStyle = colors.bg;
   cctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
 
   // Draw frequency data
-  cctx.fillStyle = COLORS.freq;
+  cctx.fillStyle = colors.freq;
   for (let i = 0; i < FREQ_BIN_COUNT / 2; i++) {
     // Only select lower half to optimize visual effects
     // (otherwise it will be too empty)
@@ -253,15 +322,11 @@ const render = () => {
     const startPoint = convertPolarToCartesian(
       canvasSize.height * RADIUS_LIMIT.min,
       angleInDegree,
-        canvasSize.width / 2,
-        canvasSize.height / 2,
     );
     cctx.moveTo(startPoint.x, startPoint.y); // Start point
     const endPoint = convertPolarToCartesian(
         dataArray[i] * freqMultiplyRate.radius + canvasSize.height * RADIUS_LIMIT.min,
         angleInDegree,
-        canvasSize.width / 2,
-        canvasSize.height / 2,
     );
     cctx.lineTo(
         endPoint.x, endPoint.y,
@@ -270,9 +335,22 @@ const render = () => {
     cctx.closePath();
   }
 
+  // Draw fragments
+  for (let i = 0; i < FRAGMENTS_SETTINGS.count; i++) {
+    if (!drawFragment(fragmentsArray[i])) {
+      fragmentsArray[i] = {
+        selfRadius: Math.random() * (fragmentSize.maxSelfRadius - fragmentSize.minSelfRadius) + fragmentSize.minSelfRadius,
+        selfAngle: Math.random() * 360,
+        positionRadius: fragmentSize.minPositionRadius,
+        positionAngle: Math.random() * 360,
+        stepRadius: (Math.random() * 0.5 + 0.5) * FRAGMENTS_SETTINGS.stepRadius,
+        stepAngle: (Math.random() * 2 - 1) * FRAGMENTS_SETTINGS.stepAngle,
+      }
+      drawFragment(fragmentsArray[i]);
+    }
+  }
+
   // Update progress
-  //// Update time
-  timeFull.value!.innerText = parseSecondsToTime(audio.duration);
   //// Update played progress
   const playedPercent = audio.currentTime / audio.duration * 100;
   barPlayed.value!.style.width = `${playedPercent}%`;
@@ -293,10 +371,13 @@ const render = () => {
 
   stats.end();
 
-  requestAnimationFrame(render);
+  if (stepEvent !== 0) {
+    // Not paused
+    requestAnimationFrame(render);
+  }
 }
 
-const convertPolarToCartesian = (radius: number, angleInDegrees: number, offsetX: number, offsetY: number) => {
+const convertPolarToCartesian = (radius: number, angleInDegrees: number, offsetX = canvasSize.width / 2, offsetY = canvasSize.height / 2) => {
   const angleInRadians = (angleInDegrees - 90) * (Math.PI / 180);
 
   return {
@@ -344,7 +425,16 @@ const seekProgress = (e: MouseEvent) => {
 
 const jumpProgress = (e: MouseEvent) => {
   const seekPercent = e.offsetX / barFull.value!.clientWidth;
-  audio.currentTime = seekPercent * audio.duration;
+  setProgress(seekPercent * audio.duration);
+};
+
+const setProgress = (time: number) => {
+  if (time < 0) {
+    time = 0;
+  } else if (time > audio.duration) {
+    time = audio.duration;
+  }
+  audio.currentTime = time;
 };
 
 const toggleMute = () => {
@@ -355,10 +445,6 @@ const toggleMute = () => {
 const jumpVolume = (e: MouseEvent) => {
   const volumePercent = (barVolumeFull.value!.clientHeight - e.offsetY) / barVolumeFull.value!.clientHeight;
   setVolume(volumePercent);
-}
-
-const scrollVolume = (e: WheelEvent) => {
-  setVolume(audio.volume - e.deltaY * VOLUME_SCROLL_STEP)
 }
 
 const setVolume = (volumePercent: number) => {
@@ -377,20 +463,67 @@ const setVolume = (volumePercent: number) => {
   barVolumeNow.value!.style.height = `${volumePercent * 100}%`;
 }
 
+const scrollEvent = (e: WheelEvent) => {
+  if (e.deltaX) {
+    setProgress(audio.currentTime - e.deltaX / canvasSize.width * audio.duration);
+  }
+  if (e.deltaY) {
+    setVolume(audio.volume - e.deltaY / canvasSize.height);
+  }
+}
+
 const getCoverColor = () => {
   const colorThief = new ColorThief();
-  const colors = colorThief.getPalette(cover.value);
-  COLORS.bg = `rgb(${changeColor(colors[0], true).join(',')})`;
-  COLORS.freq = `rgb(${changeColor(colors[1], false).join(',')})`;
-  COLORS.fragments = `rgba(${changeColor(colors[2], false).join(',')},0.3)`;
+  const palette = colorThief.getPalette(cover.value);
+  colors = {
+    bg: `rgb(${changeColor(palette[0], true).join(',')})`,
+    freq: `rgb(${changeColor(palette[1], false).join(',')})`,
+    fragments: `rgba(${changeColor(palette[2], false).join(',')},0.4)`,
+  }
 
   // Update line color
-  cctx.strokeStyle = COLORS.freq;
+  cctx.strokeStyle = colors.freq;
+
+  // Flush canvas
+  requestAnimationFrame(render);
 }
 
 const changeColor = (rgbColor: [number, number, number], isDarken: boolean): [number, number, number] => {
   const [h, s] = rgbToHsl(...rgbColor);
   return hslToRgb(h, s, isDarken ? 0.25 : 0.85);
+}
+
+const drawFragment = (props: FragmentProps) => {
+  // Calculate fragment position
+  const center = convertPolarToCartesian(props.positionRadius, props.positionAngle);
+
+  // Calculate if is on canvas
+  if (
+      center.x - props.selfRadius < 0 || center.x + props.selfRadius > canvasSize.width ||
+      center.y - props.selfRadius < 0 || center.y + props.selfRadius > canvasSize.height
+  ) {
+    // Outside of canvas
+    return false;
+  } else {
+    // Inside, draw
+    // Calc 3 points
+    const vertexes = [
+      convertPolarToCartesian(props.selfRadius,  props.selfAngle, center.x, center.y),
+      convertPolarToCartesian(props.selfRadius, 120 + props.selfAngle, center.x, center.y),
+      convertPolarToCartesian(props.selfRadius, 240 + props.selfAngle, center.x, center.y),
+    ];
+
+    cctx.fillStyle = colors.fragments;
+    cctx.beginPath();
+    cctx.moveTo(vertexes[0].x, vertexes[0].y);
+    cctx.lineTo(vertexes[1].x, vertexes[1].y);
+    cctx.lineTo(vertexes[2].x, vertexes[2].y);
+    cctx.lineTo(vertexes[0].x, vertexes[0].y);
+    cctx.closePath();
+    cctx.fill();
+
+    return true;
+  }
 }
 
 </script>
