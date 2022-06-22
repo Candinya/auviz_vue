@@ -7,7 +7,9 @@ import Viz from './components/Viz.vue'
 
 <template>
   <div :style="{
-    margin: '0 2rem',
+    margin: 'auto',
+    width: '80%',
+    maxWidth: '1024px',
   }">
     <Viz
         audio-src="https://file.nya.one/misskey/627f040f-fc69-4daa-b094-b694b1494ca4.mp3"
