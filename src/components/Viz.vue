@@ -422,11 +422,17 @@ const startSeeking = () => {
 
 const endSeeking = () => {
   isSeeking = false;
+
+  // Seeker homing
+  const playedPercent = audio.currentTime / audio.duration * 100;
+  barPlayed.value!.style.width = `${playedPercent}%`;
+  timeNow.value!.innerText = parseSecondsToTime(audio.currentTime);
+  seeker.value!.style.left = `${playedPercent}%`;
 }
 
 const seekProgress = (e: MouseEvent) => {
   const seekPercent = e.offsetX / barFull.value!.clientWidth;
-  const seekTime = Math.floor(seekPercent * audio.duration);
+  const seekTime = Math.floor(seekPercent * (isNaN(audio.duration) ? 0 : audio.duration));
   timeNow.value!.innerText = parseSecondsToTime(seekTime);
   barPlayed.value!.style.width = `${seekPercent * 100}%`;
   seeker.value!.style.left = `${seekPercent * 100}%`;
@@ -434,7 +440,7 @@ const seekProgress = (e: MouseEvent) => {
 
 const jumpProgress = (e: MouseEvent) => {
   const seekPercent = e.offsetX / barFull.value!.clientWidth;
-  setProgress(seekPercent * audio.duration);
+  setProgress(seekPercent * (isNaN(audio.duration) ? 0 : audio.duration));
 };
 
 const setProgress = (time: number) => {
